@@ -6,3 +6,5 @@ obj/
 .env.local
 *.backup.*
 *.user
+decrypted.env
+*.decrypted
