@@ -1,72 +1,162 @@
 # DotEnv Secret Manager
 
-A secure .env file encryption tool for C#/.NET developers.
+A secure .env file encryption tool for C#/.NET developers with automatic MSBuild integration.
 
 ## What This Solves
 
 - **Accidental commits**: Encrypt your .env files so secrets never leak into git
 - **Team sharing**: Safely share encrypted configuration with your team
 - **Environment security**: Keep secrets encrypted at rest
+- **Build automation**: Automatic encryption/decryption during builds
 
-## Installation
+## Installation & Setup
 
-### Option 1: Global .NET Tool (Recommended)
+### Option 1: MSBuild Integration (Recommended - Automatic)
+Perfect for teams and automatic workflows:
+
 ```bash
-# Install from local build
-dotnet pack
+# Add MSBuild package to your project
+dotnet add package DotEnv.SecretManager.MSBuild
+```
+
+**Enable automatic encryption in your project file:**
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    
+    <!-- Enable automatic .env encryption during builds -->
+    <AutoEncryptEnv>true</AutoEncryptEnv>
+  </PropertyGroup>
+</Project>
+```
+
+**Set your encryption password:**
+```bash
+# Via environment variable (recommended)
+export ENV_ENCRYPTION_PASSWORD=your-secure-password
+
+# Or via MSBuild property
+dotnet build -p:EnvEncryptionPassword=your-secure-password
+```
+
+### Option 2: Global CLI Tool (Manual Use)
+For individual developers who prefer manual control:
+
+```bash
+# Install the global tool
 dotnet tool install -g --add-source ./bin/Release DotEnvSecretManager
 
 # Use anywhere
 dotenv-encrypt encrypt .env
 ```
 
-### Option 2: Run from Source
-```bash
-# Clone and build
-git clone https://github.com/iiSmitty/envcrypt
-cd DotEnvSecretManager
-dotnet build
+### Option 3: Library Integration
+For programmatic use in your applications:
 
-# Run commands
-dotnet run --project DotEnv.SecretManager.CLI encrypt .env
-```
-
-### Option 3: Use as Library
 ```bash
 # Add to your project
 dotnet add package DotEnv.SecretManager.Core
-
-# Use in code
-var secretManager = new SecretManager(encryptionService, fileService);
-var result = await secretManager.EncryptFileAsync(".env", "password");
 ```
 
-## Quick Start
-
-### 1. Create a sample .env file
+### Option 4: Build from Source
 ```bash
-echo "API_KEY=sk_test_123456789" > .env
-echo "DB_PASSWORD=super_secret_password" >> .env
-echo "JWT_SECRET=my_jwt_secret_key" >> .env
+git clone https://github.com/iiSmitty/envcrypt
+cd DotEnvSecretManager
+dotnet build
+dotnet run --project DotEnv.SecretManager.CLI encrypt .env
 ```
 
-### 2. Analyze your file
+## MSBuild Integration (Automatic Workflow)
+
+Transform your development workflow with zero-effort encryption:
+
+### The New Developer Experience
+
+**Before (Manual):**
 ```bash
-dotenv-encrypt info .env
+vim .env                           # Edit secrets
+dotenv-encrypt encrypt .env        # Remember to encrypt
+git add .env.enc                   # Manual process
+git commit -m "Update config"
 ```
 
-### 3. Encrypt the file
+**After (Automatic):**
 ```bash
-dotenv-encrypt encrypt .env
-# You'll be prompted for a password (with confirmation)
+vim .env                           # Edit secrets
+dotnet build                       # Encryption happens automatically
+git add .env.enc                   # Only encrypted files exist
+git commit -m "Update config"      # Zero extra steps
 ```
 
-### 4. Decrypt when needed
+### Team Onboarding
+
+**New team member setup:**
 ```bash
-dotenv-encrypt decrypt .env.enc
+git clone company-repo
+cd awesome-app
+dotnet build    # Password from environment variable, auto-decrypts
+dotnet run      # App starts with correct configuration
 ```
 
-## Commands
+### CI/CD Integration
+
+**GitHub Actions:**
+```yaml
+- name: Build and Deploy
+  run: dotnet build -p:EnvEncryptionPassword=${{ secrets.ENV_PASSWORD }}
+  env:
+    ENV_ENCRYPTION_PASSWORD: ${{ secrets.ENV_PASSWORD }}
+# Automatic decryption during build, deploys with correct config
+```
+
+**Azure DevOps:**
+```yaml
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'build'
+    arguments: '-p:EnvEncryptionPassword=$(EnvironmentPassword)'
+```
+
+### Multi-Environment Configuration
+
+**Environment-specific encryption:**
+```xml
+<PropertyGroup Condition="'$(Configuration)' == 'Development'">
+  <EnvInputFile>.env.development</EnvInputFile>
+  <EnvOutputFile>.env.development.enc</EnvOutputFile>
+</PropertyGroup>
+
+<PropertyGroup Condition="'$(Configuration)' == 'Production'">
+  <EnvInputFile>.env.production</EnvInputFile>
+  <EnvOutputFile>.env.production.enc</EnvOutputFile>
+</PropertyGroup>
+```
+
+**Build for specific environments:**
+```bash
+dotnet build -c Development  # Uses .env.development ? .env.development.enc
+dotnet build -c Production   # Uses .env.production ? .env.production.enc
+```
+
+### Advanced MSBuild Configuration
+
+```xml
+<PropertyGroup>
+  <!-- Custom file paths -->
+  <EnvInputFile>$(ProjectDir)config/.env</EnvInputFile>
+  <EnvOutputFile>$(ProjectDir)config/.env.encrypted</EnvOutputFile>
+  
+  <!-- Conditional automation -->
+  <AutoEncryptEnv Condition="'$(Configuration)' == 'Release'">true</AutoEncryptEnv>
+  <AutoDecryptEnv Condition="'$(CI)' == 'true'">true</AutoDecryptEnv>
+  
+  <!-- Password from different sources -->
+  <EnvEncryptionPassword Condition="'$(EnvEncryptionPassword)' == ''">$(ENV_ENCRYPTION_PASSWORD)</EnvEncryptionPassword>
+</PropertyGroup>
+```
+
+## CLI Commands (Manual Tool)
 
 ### Core Commands
 
@@ -80,9 +170,6 @@ dotenv-encrypt encrypt .env --output .env.production.enc
 
 # Force overwrite existing files
 dotenv-encrypt encrypt .env --force
-
-# With password via command line (not recommended)
-dotenv-encrypt encrypt .env --password mypassword
 ```
 
 #### `decrypt` - Decrypt an encrypted file
@@ -101,43 +188,87 @@ dotenv-encrypt decrypt .env.enc --force
 ```bash
 # Validate with password prompt
 dotenv-encrypt validate .env.enc
-
-# Quick validation
-dotenv-encrypt validate .env.enc --password mypassword
 ```
-
-#### `info` - Analyze file contents
-```bash
-# Analyze any .env file
-dotenv-encrypt info .env
-dotenv-encrypt info .env.enc
-
-# Shows: file size, entry counts, encryption status, preview
-```
-
-### Utility Commands
 
 #### `help` - Show usage information
 ```bash
 dotenv-encrypt help           # General help
-dotenv-encrypt examples       # Usage examples  
 ```
 
-#### `version` - Show version and info
+## Quick Start Examples
+
+### 1. MSBuild Integration Setup (5 minutes)
 ```bash
-dotenv-encrypt version
+# Add package to your project
+dotnet add package DotEnv.SecretManager.MSBuild
+
+# Edit your .csproj to enable auto-encryption
+echo '<AutoEncryptEnv>true</AutoEncryptEnv>' # Add to PropertyGroup
+
+# Create test .env file
+echo "API_KEY=sk_test_123456789" > .env
+echo "DB_PASSWORD=super_secret_password" >> .env
+
+# Set password and build
+export ENV_ENCRYPTION_PASSWORD=testpassword123
+dotnet build
+
+# Check results - .env.enc should be created automatically
+ls -la .env*
 ```
 
-## Command Options
+### 2. Manual CLI Usage
+```bash
+# Install CLI tool
+dotenv tool install -g DotEnvSecretManager
 
-### Global Options
-- `--help, -h` - Show help
-- `--version, -v` - Show version
+# Create sample .env file
+echo "API_KEY=test-secret-key-123" > .env
+echo "DB_PASSWORD=super-secret-password" >> .env
 
-### Encrypt/Decrypt Options
-- `--output, -o <file>` - Output file path
-- `--password, -p <pwd>` - Password (prompts if not provided)
-- `--force, -f` - Overwrite existing files without confirmation
+# Encrypt the file
+dotenv-encrypt encrypt .env
+
+# Verify it worked
+dotenv-encrypt validate .env.enc
+
+# Decrypt when needed
+dotenv-encrypt decrypt .env.enc --output .env.local
+```
+
+### 3. Team Workflow
+```bash
+# Developer A: Encrypt and commit
+dotenv-encrypt encrypt .env
+git add .env.enc
+git commit -m "Add encrypted environment config"
+git push
+
+# Developer B: Pull and decrypt
+git pull
+dotenv-encrypt decrypt .env.enc --output .env.local
+# Uses .env.local for development
+```
+
+## Package Overview
+
+This project provides three complementary packages:
+
+| Package | Use Case | Installation |
+|---------|----------|--------------|
+| **`DotEnv.SecretManager.MSBuild`** | **Automatic build integration** | `dotnet add package` |
+| `DotEnvSecretManager` | Manual CLI encryption | `dotnet tool install -g` |
+| `DotEnv.SecretManager.Core` | Programmatic library use | `dotnet add package` |
+
+### Which Package Should I Use?
+
+| Scenario | Recommended Package | Why |
+|----------|-------------------|-----|
+| **Team development** | `DotEnv.SecretManager.MSBuild` | Zero setup, automatic, consistent |
+| **CI/CD pipelines** | `DotEnv.SecretManager.MSBuild` | One build command handles everything |
+| **New projects** | `DotEnv.SecretManager.MSBuild` | Set-and-forget automation |
+| Individual manual use | `DotEnvSecretManager` (CLI) | Full control, no project changes |
+| Library integration | `DotEnv.SecretManager.Core` | Programmatic access |
 
 ## Security Features
 
@@ -147,93 +278,6 @@ dotenv-encrypt version
 - **Base64 encoding** for safe text storage
 - **Password confirmation** for encryption operations
 - **Secure password prompting** with masked input
-
-## Example Output
-
-### File Analysis
-```
-PS> dotenv-encrypt info .env
-
-Analyzing: .env
-
-File Information:
-  Size: 2.1 KB
-  Modified: 2025-09-11 18:38:05
-  Lines: 72
-
-Content Analysis:
-  Total entries: 58
-  Key-value pairs: 41
-  Comments: 17
-  Encrypted values: 0
-  Plain text values: 41
-
-Environment Variables:
-  [PLAIN] DB_HOST = localhost
-  [PLAIN] API_KEY = sk_test_1234567890abcdef
-  ...
-```
-
-### Encryption Process
-```
-PS> dotenv-encrypt encrypt .env
-
-Enter encryption password: ********
-Confirm password: ********
-Encrypting: .env
-Output to: .env.enc
-
-Progress: Processing file...
-Encryption completed successfully!
-
-Input file:        .env
-Output file:       .env.enc
-Entries encrypted: 39
-Duration:          535ms
-File size:         4.6 KB
-
-Security Reminders:
-  * Store your password safely - it cannot be recovered
-  * Encrypted .enc files are safe to commit to git
-  * Consider backing up the original file
-```
-
-## Typical Workflow
-
-### Development Team Setup
-```bash
-# 1. Developer encrypts local .env
-dotenv-encrypt encrypt .env
-# Creates .env.enc (safe to commit)
-
-# 2. Commit encrypted file
-git add .env.enc
-git commit -m "Add encrypted environment config"
-git push
-
-# 3. Team member pulls and decrypts
-git pull
-dotenv-encrypt decrypt .env.enc --output .env.local
-# Uses .env.local for development
-```
-
-### CI/CD Pipeline
-```bash
-# In your deployment script
-dotenv-encrypt decrypt .env.production.enc --output .env --password $DECRYPT_PASSWORD
-# Deploy with decrypted environment
-```
-
-## File Structure
-
-```
-DotEnvSecretManager/
-??? DotEnv.SecretManager.Core/         # Core library (NuGet package)
-??? DotEnv.SecretManager.CLI/          # CLI tool (Global .NET tool)  
-??? DotEnv.SecretManager.Tests/        # Unit tests
-??? README.md
-??? .gitignore
-```
 
 ## Git Workflow & Files
 
@@ -246,12 +290,39 @@ DotEnvSecretManager/
 .env
 .env.local
 .env.development
+.env.production
 *.decrypted
 decrypted.env
 *.backup.*
 ```
 
-## Library Usage (for Developers)
+## Security Best Practices
+
+### Password Management
+- Use **strong, unique passwords** for each project
+- Store passwords in a **secure password manager**
+- Consider using **key derivation** from master passwords
+- **Rotate passwords** regularly in production
+
+### File Management
+- Always add `.env*` to `.gitignore` (except `.enc` files)
+- **Delete decrypted files** after use in CI/CD
+- Create **backups** of original files before encryption
+- Use **environment-specific** encrypted files
+
+### Team Collaboration
+- Share **encrypted files** via git safely
+- Share **passwords** via secure channels (not Slack/email)
+- Use **different passwords** for different environments
+- Document the **encryption/decryption process** for your team
+
+### CI/CD Security
+- Store passwords in **secure CI/CD secrets**
+- Use **environment-specific** configurations
+- **Clean up** decrypted files after deployment
+- **Audit** who has access to encryption passwords
+
+## Library Usage (Programmatic)
 
 ```csharp
 using DotEnv.SecretManager.Core.Services;
@@ -273,26 +344,6 @@ string encrypted = await encryptionService.EncryptAsync("secret-value", "passwor
 string decrypted = await encryptionService.DecryptAsync(encrypted, "password");
 ```
 
-## Security Best Practices
-
-### Password Management
-- Use **strong, unique passwords** for each project
-- Store passwords in a **secure password manager**
-- Consider using **key derivation** from master passwords
-- **Rotate passwords** regularly in production
-
-### File Management
-- Always add `.env*` to `.gitignore` (except `.enc` files)
-- **Delete decrypted files** after use
-- Create **backups** of original files before encryption
-- Use **environment-specific** encrypted files (`.env.production.enc`)
-
-### Team Collaboration
-- Share **encrypted files** via git safely
-- Share **passwords** via secure channels (not Slack/email)
-- Use **different passwords** for different environments
-- Document the **encryption/decryption process** for your team
-
 ## Development
 
 ### Running Tests
@@ -307,17 +358,30 @@ dotnet build
 dotnet pack
 ```
 
-### Contributing
+### File Structure
+```
+DotEnvSecretManager/
+??? DotEnv.SecretManager.Core/         # Core library
+??? DotEnv.SecretManager.CLI/          # CLI tool  
+??? DotEnv.SecretManager.MSBuild/      # MSBuild integration
+??? DotEnv.SecretManager.Tests/        # Unit tests
+??? README.md
+??? .gitignore
+```
+
+## Version History
+
+- **v1.2.0** - Added MSBuild integration for automatic encryption
+- **v1.1.0** - Enhanced CLI with info command, better UX, improved architecture
+- **v1.0.0** - Initial release with core encryption/decryption functionality
+
+## Contributing
+
 1. Fork the repository
 2. Create a feature branch
 3. Add tests for new functionality
 4. Ensure all tests pass
 5. Submit a pull request
-
-## Version History
-
-- **v1.1.0** - Enhanced CLI with info command, better UX, improved architecture
-- **v1.0.0** - Initial release with core encryption/decryption functionality
 
 ## License
 
